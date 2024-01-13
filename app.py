@@ -1,133 +1,137 @@
-from flask import Flask,jsonify,request
-from flask_swagger import swagger
-from flask_swagger_ui import get_swaggerui_blueprint
-import datetime
-from flask_cors import CORS
+from flask import Flask, render_template, request, redirect, url_for
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
-CORS(app)
 
-SWAGGER_URL = '/api/docs'  # URL for exposing Swagger UI (without trailing '/')
-API_URL = 'http://localhost:5000/swagger'  # Our API url (can of course be a local resource)
+# Base de datos de usuarios (simulada)
+usuarios = [
+    {"nombre": "august", "contraseña": "pass1", "fecha_nacimiento": "01/01/1990", "cedula": "1234567890"},
+    # Agrega más usuarios según sea necesario
+]
 
-class ConsultaMedica:
-    def __init__(self, paciente, doctor, fecha, pago):
-        self.paciente = paciente
-        self.doctor = doctor
-        self.fecha = fecha
-        self.pago = pago
+# Doctores disponibles
+doctores_disponibles = [
+    {"nombre": "Alberto", "contraseña": "pass_doc1"},
+    {"nombre": "Bob", "contraseña": "pass_doc2"},
+    {"nombre": "Caseres", "contraseña": "pass_doc3"},
+    # Puedes agregar más doctores según sea necesario
+]
 
-class RegistroConsultas:
-    def __init__(self):
-        self.consultas = []
+# Citas disponibles (específicas)
+fechas_disponibles = [
+    datetime(2024, 1, 10),
+    datetime(2024, 1, 11),
+    datetime(2024, 1, 12),
+    datetime(2024, 1, 13),
+    datetime(2024, 1, 14),
+    datetime(2024, 1, 15),
+    datetime(2024, 1, 16),
+    datetime(2024, 1, 17),
+    datetime(2024, 1, 18),
+    datetime(2024, 1, 19),
+]
 
-    def agregar_consulta(self, consulta):
-        self.consultas.append(consulta)
+# Almacena la asignación de doctor y fecha por usuario
+asignaciones_doctores_fechas = {}
 
-    def obtener_consultas(self):
-        return [vars(consulta) for consulta in self.consultas]
+@app.route('/')
+def index():
+    return render_template('main_pacientes.html', usuario=None)
 
-    def borrar_todas_consultas(self):
-        self.consultas = []
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        nombre_usuario = request.form['nombre']
+        contraseña = request.form['contraseña']
 
-registro = RegistroConsultas()
+        # Verificación de usuario
+        for usuario in usuarios:
+            if usuario['nombre'] == nombre_usuario and usuario['contraseña'] == contraseña:
+                return redirect(url_for('main_pacientes', usuario=nombre_usuario))
 
-@app.route("/swagger")
-def spec():
-    swag = swagger(app)
-    swag['info']['version'] = "1.0"
-    swag['info']['title'] = "Api Consultas medicas"
-    return jsonify(swag)
+        # Verificación de doctor
+        for doctor in doctores_disponibles:
+            if doctor['nombre'] == nombre_usuario and doctor['contraseña'] == contraseña:
+                return render_template('main_consultas.html', usuario=nombre_usuario)
 
-@app.route('/registrar_consulta', methods=['POST'])
-def registrar_consulta():
-    """
-        Registrar una consulta
-        ---
-        parameters:
-          - in: body
-            name: body
-            schema:
-              id: Consulta
-              required:
-                - doctor
-                - paciente
-                - pago
-              properties:
-                doctor:
-                  type: string
-                paciente:
-                  type: string
-                pago:
-                  type: number
-        responses:
-          201:
-            description: Consulta registrada con éxito
-    """
-    datos_consulta = request.get_json()
-    paciente = datos_consulta['paciente']
-    doctor = datos_consulta['doctor']
-    
-    # Verificar si se proporcionó la fecha en el cuerpo de la solicitud
-    if 'fecha' in datos_consulta:
-        fecha = datos_consulta['fecha']
-    else:
-        fecha = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return 'Usuario o contraseña incorrectos'
 
-    pago = datos_consulta['pago']
+    return render_template('login.html')
 
-    nueva_consulta = ConsultaMedica(paciente, doctor, fecha, pago)
-    registro.agregar_consulta(nueva_consulta)
+@app.route('/registro', methods=['GET', 'POST'])
+def registro():
+    if request.method == 'POST':
+        nombre_usuario = request.form['nombre']
+        contraseña = request.form['contraseña']
+        fecha_nacimiento = request.form['fecha_nacimiento']
+        cedula = request.form['cedula']
 
-    print(f"Datos de la consulta recibidos: {datos_consulta}")
+        # Registro de usuario
+        usuarios.append({
+            'nombre': nombre_usuario,
+            'contraseña': contraseña,
+            'fecha_nacimiento': fecha_nacimiento,
+            'cedula': cedula
+        })
 
-    # Incluir la fecha en la respuesta JSON
-    response_data = {
-        "mensaje": "Consulta registrada con éxito",
-        "fecha_registro": fecha
-    }
+        return redirect(url_for('login'))
 
-    return jsonify(response_data)
+    return render_template('registro.html')
 
-@app.route('/consultas', methods=['GET'])
-def obtener_consultas():
-    """
-        Obtener consultas
-        ---
-        responses:
-          200:
-            description: Listado obtenido con éxito
-            content:
-            application/json:
-                example: [{"paciente": "Baltazar Andrade", "doctor": "Pedro Cazares"}]
-    """
-    consultas = registro.obtener_consultas()
-    return jsonify({"consultas": consultas})
+@app.route('/registro_doctor', methods=['GET', 'POST'])
+def registro_doctor():
+    if request.method == 'POST':
+        nombre_doctor = request.form['nombre']
+        contraseña_doctor = request.form['contraseña']
 
-@app.route('/borrar_consultas', methods=['DELETE'])
-def borrar_todas_consultas():
-    """
-    Borrar todas las consultas
-    ---
-    delete:
-        responses:
-          200:
-            description: Listado eliminado con éxito
-    """
-    registro.borrar_todas_consultas()
-    return jsonify({"mensaje": "Todas las consultas han sido eliminadas"})
+        # Registro de doctor
+        doctores_disponibles.append({
+            'nombre': nombre_doctor,
+            'contraseña': contraseña_doctor
+        })
+
+        return redirect(url_for('login'))
+
+    return render_template('registro_doctor.html')
+
+@app.route('/citas/<usuario>', methods=['GET', 'POST'])
+def citas(usuario):
+    asignacion = asignaciones_doctores_fechas.get(usuario, {})
+
+    if request.method == 'POST':
+        if 'fecha_cita' in request.form:
+            fecha_seleccionada = datetime.strptime(request.form['fecha_cita'], '%Y-%m-%d')
+
+            if fecha_seleccionada in fechas_disponibles and fecha_seleccionada not in asignacion.get('fechas', []):
+                asignacion['fechas'] = [fecha_seleccionada]
+                asignacion['doctor'] = request.form['doctor']
+
+                # Almacena la información seleccionada para el usuario
+                asignaciones_doctores_fechas[usuario] = asignacion
+
+                # Imprime para depurar
+                print(asignaciones_doctores_fechas)
+
+                # Redirección a la página de main_pacientes después de programar una cita
+                return redirect(url_for('main_pacientes', usuario=usuario))
+
+    return render_template('citas.html', usuario=usuario, asignacion=asignacion, fechas_disponibles=fechas_disponibles, doctores_disponibles=doctores_disponibles)
+
+@app.route('/main_pacientes/<usuario>', methods=['GET'])
+def main_pacientes(usuario):
+    return render_template('main_pacientes.html', usuario=usuario)
+
+@app.route('/main_consultas', methods=['GET'])
+def main_consultas():
+    print(asignaciones_doctores_fechas)  # Añade esta línea para imprimir en la consola
+    return render_template('main_consultas.html', asignaciones_doctores_fechas=asignaciones_doctores_fechas)
+
+@app.route('/eliminar_asignacion/<usuario>', methods=['POST'])
+def eliminar_asignacion(usuario):
+    asignaciones_doctores_fechas.pop(usuario, None)
+    return redirect(url_for('login', usuario=usuario))
 
 
-# Call factory function to create our blueprint
-swaggerui_blueprint = get_swaggerui_blueprint(
-    SWAGGER_URL,  # Swagger UI static files will be mapped to '{SWAGGER_URL}/dist/'
-    API_URL,
-    config={  # Swagger UI config overrides
-        'app_name': "Consultas medicas"
-    },
-)
-
-app.register_blueprint(swaggerui_blueprint)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
